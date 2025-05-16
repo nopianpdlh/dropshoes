@@ -8,10 +8,13 @@ const nextConfig = {
         protocol: "https",
         hostname: "images.unsplash.com",
       },
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+        pathname: "/djuiqpinc/image/upload/**",
+      },
     ],
     domains: [
-      "example.com",
-      "via.placeholder.com",
       "images.unsplash.com",
       "lh3.googleusercontent.com",
       "res.cloudinary.com",

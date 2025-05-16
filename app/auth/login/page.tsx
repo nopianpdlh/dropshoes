@@ -31,7 +31,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/");
+      router.push("/admin/products");
       router.refresh();
     } catch (error) {
       setError("Terjadi kesalahan. Silakan coba lagi.");

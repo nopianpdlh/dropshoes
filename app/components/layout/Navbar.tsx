@@ -1,11 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { ShoppingCart, User, Search } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { ShoppingCart, User, Search, LogIn, UserPlus } from "lucide-react";
+import { useSession, signOut } from "next-auth/react";
 
 const Navbar = () => {
   const pathname = usePathname();
+  const router = useRouter();
+  const { data: session } = useSession();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showAuthMenu, setShowAuthMenu] = useState(false);
+
+  // Jika user adalah admin dan berada di halaman admin, jangan tampilkan navbar ini
+  if (session?.user?.role === "ADMIN" && pathname.startsWith("/admin")) {
+    return null;
+  }
 
   const navItems = [
     { name: "Home", href: "/" },
@@ -14,6 +25,13 @@ const Navbar = () => {
     { name: "Kids", href: "/products?category=kids" },
     { name: "Sale", href: "/products?sale=true" },
   ];
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      router.push(`/products?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
 
   return (
     <nav className="bg-white shadow-md">
@@ -41,31 +59,95 @@ const Navbar = () => {
               ))}
             </div>
           </div>
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
+          <div className="flex items-center gap-4">
+            {/* Search Form */}
+            <form onSubmit={handleSearch} className="relative">
+              <input
+                type="text"
+                placeholder="Cari produk..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-64 px-4 py-1 pr-10 text-sm border rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
               <button
-                type="button"
-                className="relative p-2 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                type="submit"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
-                <Search className="h-6 w-6" />
+                <Search className="h-4 w-4" />
               </button>
-            </div>
-            <div className="flex-shrink-0 ml-4">
-              <Link
-                href="/cart"
-                className="relative p-2 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              >
-                <ShoppingCart className="h-6 w-6" />
-                <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-400 ring-2 ring-white" />
-              </Link>
-            </div>
-            <div className="flex-shrink-0 ml-4">
-              <Link
-                href="/profile"
-                className="relative p-2 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            </form>
+
+            {/* Cart */}
+            <Link
+              href="/cart"
+              className="relative p-2 rounded-full text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              <ShoppingCart className="h-6 w-6" />
+              <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-400 ring-2 ring-white" />
+            </Link>
+
+            {/* Profile/Auth Menu */}
+            <div className="relative">
+              <button
+                className="p-2 rounded-full text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                onClick={() => setShowAuthMenu(!showAuthMenu)}
               >
                 <User className="h-6 w-6" />
-              </Link>
+              </button>
+
+              {/* Dropdown Menu */}
+              {showAuthMenu && (
+                <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-50">
+                  {session ? (
+                    <>
+                      {session.user.role === "ADMIN" ? (
+                        <Link
+                          href="/admin"
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        >
+                          Admin Dashboard
+                        </Link>
+                      ) : (
+                        <Link
+                          href="/profile"
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        >
+                          Profile
+                        </Link>
+                      )}
+                      <Link
+                        href="/orders"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        Pesanan Saya
+                      </Link>
+                      <button
+                        onClick={() => signOut()}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        Keluar
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <Link
+                        href="/auth/login"
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <LogIn className="h-4 w-4 mr-2" />
+                        Masuk
+                      </Link>
+                      <Link
+                        href="/auth/register"
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Daftar
+                      </Link>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
