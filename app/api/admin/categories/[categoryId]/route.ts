@@ -11,10 +11,12 @@ export async function PUT(
 ) {
   try {
     const session = await getServerSession(authOptions);
+
     if (!session || session.user.role !== "ADMIN") {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
+    const { categoryId } = params;
     const body = await req.json();
     const { name, parentId } = body;
 
@@ -22,7 +24,18 @@ export async function PUT(
       return new NextResponse("Name is required", { status: 400 });
     }
 
+    // Check if category exists
+    const existingCategory = await prisma.category.findUnique({
+      where: { id: categoryId },
+    });
+
+    if (!existingCategory) {
+      return new NextResponse("Category not found", { status: 404 });
+    }
+
+    // If parentId is provided, validate it
     if (parentId) {
+      // Check if parent category exists
       const parentCategory = await prisma.category.findUnique({
         where: { id: parentId },
       });
@@ -31,50 +44,51 @@ export async function PUT(
         return new NextResponse("Parent category not found", { status: 404 });
       }
 
-      if (parentId === params.categoryId) {
+      // Prevent setting parent to itself
+      if (parentId === categoryId) {
         return new NextResponse("Category cannot be its own parent", {
           status: 400,
         });
       }
 
-      const isCircular = await checkCircularReference(
-        params.categoryId,
-        parentId
-      );
-      if (isCircular) {
-        return new NextResponse("Circular reference detected", { status: 400 });
+      // Prevent circular reference
+      let currentParent = parentCategory;
+      while (currentParent?.parentId) {
+        const nextParent = await prisma.category.findUnique({
+          where: { id: currentParent.parentId },
+        });
+        if (!nextParent) break;
+        if (nextParent.id === categoryId) {
+          return new NextResponse(
+            "Cannot create circular reference in category hierarchy",
+            { status: 400 }
+          );
+        }
+        currentParent = nextParent;
       }
     }
 
-    const updateData: Prisma.CategoryUpdateInput = {
-      name,
-      ...(parentId
-        ? {
-            parent: {
-              connect: { id: parentId },
-            },
-          }
-        : {
-            parent: {
-              disconnect: true,
-            },
-          }),
-    };
-
+    // Update the category
     const updatedCategory = await prisma.category.update({
-      where: {
-        id: params.categoryId,
+      where: { id: categoryId },
+      data: {
+        name,
+        parentId: parentId || null,
       },
-      data: updateData,
+      select: {
+        id: true,
+        name: true,
+        parentId: true,
+        parent: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
     });
 
-    // Fetch the updated category with its parent
-    const categoryWithParent = await prisma.category.findUnique({
-      where: { id: updatedCategory.id },
-      include: { parent: true },
-    });
-
-    return NextResponse.json(categoryWithParent);
+    return NextResponse.json(updatedCategory);
   } catch (error) {
     console.error("[CATEGORY_PUT]", error);
     return new NextResponse("Internal error", { status: 500 });
@@ -88,57 +102,55 @@ export async function DELETE(
 ) {
   try {
     const session = await getServerSession(authOptions);
+
     if (!session || session.user.role !== "ADMIN") {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    // Check if category exists
+    const { categoryId } = params;
+
+    // Check if category exists and get its relationships
     const category = await prisma.category.findUnique({
-      where: { id: params.categoryId },
+      where: { id: categoryId },
+      include: {
+        children: true,
+        products: {
+          select: { id: true },
+        },
+      },
     });
 
     if (!category) {
       return new NextResponse("Category not found", { status: 404 });
     }
 
-    // Check for products
-    const productsCount = await prisma.product.count({
-      where: {
-        categoryId: params.categoryId,
-      },
-    });
-
-    if (productsCount > 0) {
-      return new NextResponse("Cannot delete category that has products", {
-        status: 400,
-      });
+    // Check if category has children
+    if (category.children.length > 0) {
+      return new NextResponse(
+        "Tidak dapat menghapus kategori yang memiliki sub-kategori. Harap hapus sub-kategori terlebih dahulu.",
+        { status: 400 }
+      );
     }
 
-    // Check for child categories
-    const children = await prisma.category.findMany({
-      where: {
-        parent: {
-          id: params.categoryId,
-        },
-      },
-    });
-
-    if (children.length > 0) {
-      return new NextResponse("Cannot delete category that has subcategories", {
-        status: 400,
-      });
+    // Check if category has products
+    if (category.products.length > 0) {
+      return new NextResponse(
+        "Tidak dapat menghapus kategori yang memiliki produk. Harap pindahkan atau hapus produk terlebih dahulu.",
+        { status: 400 }
+      );
     }
 
+    // Delete the category
     await prisma.category.delete({
-      where: {
-        id: params.categoryId,
-      },
+      where: { id: categoryId },
     });
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {
     console.error("[CATEGORY_DELETE]", error);
-    return new NextResponse("Internal error", { status: 500 });
+    return new NextResponse("Terjadi kesalahan saat menghapus kategori", {
+      status: 500,
+    });
   }
 }
 

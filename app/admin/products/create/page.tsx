@@ -7,6 +7,12 @@ import toast, { Toaster } from "react-hot-toast";
 interface Category {
   id: string;
   name: string;
+  parentId: string | null;
+  parent?: {
+    id: string;
+    name: string;
+  } | null;
+  subCategories?: Category[];
 }
 
 export default function CreateProductPage() {
@@ -24,7 +30,30 @@ export default function CreateProductPage() {
           throw new Error("Gagal mengambil data kategori");
         }
         const data = await response.json();
-        setCategories(data);
+
+        // Organize categories by parent
+        const mainCategories = data.mainCategories || [];
+        const subCategories = data.subCategories || [];
+
+        // Create a map of parent categories and their subcategories
+        const categoryMap = new Map();
+        mainCategories.forEach((cat: Category) => {
+          categoryMap.set(cat.id, {
+            ...cat,
+            subCategories: [],
+          });
+        });
+
+        // Add subcategories to their parents
+        subCategories.forEach((subCat: Category) => {
+          if (subCat.parentId && categoryMap.has(subCat.parentId)) {
+            categoryMap.get(subCat.parentId).subCategories.push(subCat);
+          }
+        });
+
+        // Convert map to array
+        const organizedCategories = Array.from(categoryMap.values());
+        setCategories(organizedCategories);
       } catch (error) {
         console.error("Error mengambil kategori:", error);
         setError("Gagal memuat kategori. Silakan coba lagi.");
@@ -191,10 +220,14 @@ export default function CreateProductPage() {
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
           >
             <option value="">Pilih Kategori</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
+            {categories.map((mainCategory) => (
+              <optgroup key={mainCategory.id} label={mainCategory.name}>
+                {mainCategory.subCategories?.map((subCategory: Category) => (
+                  <option key={subCategory.id} value={subCategory.id}>
+                    {mainCategory.name} - {subCategory.name}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </div>

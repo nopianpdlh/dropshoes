@@ -72,19 +72,22 @@ export default function CategoriesPage() {
         }),
       });
 
-      if (response.ok) {
-        toast.success("Kategori berhasil ditambahkan!");
-        setNewCategoryName("");
-        setSelectedParentId("");
-        setIsAddModalOpen(false);
-        fetchCategories();
-        router.refresh();
-      } else {
-        throw new Error("Gagal menambahkan kategori");
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(errorData || "Gagal menambahkan kategori");
       }
+
+      toast.success("Kategori berhasil ditambahkan!");
+      setNewCategoryName("");
+      setSelectedParentId("");
+      setIsAddModalOpen(false);
+      fetchCategories();
+      router.refresh();
     } catch (error) {
       console.error("Error menambahkan kategori:", error);
-      toast.error("Gagal menambahkan kategori");
+      toast.error(
+        error instanceof Error ? error.message : "Gagal menambahkan kategori"
+      );
     }
     setIsLoading(false);
   };
@@ -141,18 +144,21 @@ export default function CategoriesPage() {
         }
       );
 
-      if (response.ok) {
-        toast.success("Kategori berhasil dihapus!");
-        setIsDeleteModalOpen(false);
-        setSelectedCategory(null);
-        fetchCategories();
-        router.refresh();
-      } else {
-        throw new Error("Gagal menghapus kategori");
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(errorData || "Gagal menghapus kategori");
       }
+
+      toast.success("Kategori berhasil dihapus!");
+      setIsDeleteModalOpen(false);
+      setSelectedCategory(null);
+      fetchCategories();
+      router.refresh();
     } catch (error) {
       console.error("Error menghapus kategori:", error);
-      toast.error("Gagal menghapus kategori");
+      toast.error(
+        error instanceof Error ? error.message : "Gagal menghapus kategori"
+      );
     }
     setIsLoading(false);
   };

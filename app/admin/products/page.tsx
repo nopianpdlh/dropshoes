@@ -2,16 +2,19 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { useRouter, usePathname } from "next/navigation";
 import { formatPrice } from "@/lib/utils";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Loader2, RefreshCw } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
 interface Product {
   id: string;
   name: string;
+  description: string;
   price: number;
   stock: number;
+  images: string[];
   category: {
     name: string;
   };
@@ -19,15 +22,29 @@ interface Product {
 
 export default function AdminProductsPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   // Fetch products
-  const fetchProducts = async () => {
+  const fetchProducts = async (showRefreshIndicator = false) => {
+    if (showRefreshIndicator) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
+
     try {
-      const response = await fetch("/api/admin/products");
+      const response = await fetch("/api/admin/products", {
+        cache: "no-store",
+        headers: {
+          "Cache-Control": "no-cache",
+        },
+      });
+
       if (!response.ok) {
         throw new Error("Gagal mengambil data produk");
       }
@@ -36,18 +53,20 @@ export default function AdminProductsPage() {
     } catch (error) {
       console.error("Error mengambil produk:", error);
       toast.error("Gagal memuat daftar produk");
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+  }, [pathname]);
 
   // Delete product
   const handleDelete = async () => {
     if (!selectedProduct) return;
 
-    setIsLoading(true);
     try {
       const response = await fetch(
         `/api/admin/products/${selectedProduct.id}`,
@@ -60,8 +79,7 @@ export default function AdminProductsPage() {
         toast.success("Produk berhasil dihapus!");
         setIsDeleteModalOpen(false);
         setSelectedProduct(null);
-        fetchProducts();
-        router.refresh();
+        fetchProducts(true);
       } else {
         throw new Error("Gagal menghapus produk");
       }
@@ -69,17 +87,34 @@ export default function AdminProductsPage() {
       console.error("Error menghapus produk:", error);
       toast.error("Gagal menghapus produk");
     }
-    setIsLoading(false);
+  };
+
+  const handleRefresh = () => {
+    fetchProducts(true);
   };
 
   return (
     <div className="px-4 sm:px-6 lg:px-8">
       <Toaster position="top-center" />
-      <div className="sm:flex sm:items-center">
+      <div className="sm:flex sm:items-center mb-8">
         <div className="sm:flex-auto">
-          <h1 className="text-2xl font-semibold text-gray-900">Produk</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold text-gray-900">Produk</h1>
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="p-1 hover:bg-gray-100 rounded-full disabled:opacity-50"
+              title="Perbarui data"
+            >
+              <RefreshCw
+                className={`h-5 w-5 text-gray-500 ${
+                  isRefreshing ? "animate-spin" : ""
+                }`}
+              />
+            </button>
+          </div>
           <p className="mt-2 text-sm text-gray-700">
-            Daftar semua produk yang tersedia di toko.
+            Total Produk: {isLoading ? "Memuat..." : products.length}
           </p>
         </div>
         <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
@@ -92,84 +127,90 @@ export default function AdminProductsPage() {
         </div>
       </div>
 
-      <div className="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
-        <div className="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
-          <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-            <table className="min-w-full divide-y divide-gray-300">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th
-                    scope="col"
-                    className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6"
-                  >
-                    Nama
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
-                  >
-                    Kategori
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
-                  >
-                    Harga
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
-                  >
-                    Stok
-                  </th>
-                  <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                    <span className="sr-only">Aksi</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 bg-white">
-                {products.map((product) => (
-                  <tr key={product.id}>
-                    <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
-                      {product.name}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {product.category.name}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {formatPrice(product.price)}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {product.stock}
-                    </td>
-                    <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                      <Link
-                        href={`/admin/products/${product.id}/edit`}
-                        className="text-indigo-600 hover:text-indigo-900 mr-4"
-                      >
-                        <Pencil className="h-5 w-5 inline" />
-                      </Link>
-                      <button
-                        onClick={() => {
-                          setSelectedProduct(product);
-                          setIsDeleteModalOpen(true);
-                        }}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        <Trash2 className="h-5 w-5 inline" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {isLoading ? (
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+          <span className="ml-2 text-gray-500">Memuat produk...</span>
         </div>
-      </div>
+      ) : products.length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 rounded-lg">
+          <p className="text-gray-500">Belum ada produk yang ditambahkan</p>
+          <Link
+            href="/admin/products/create"
+            className="mt-2 inline-flex items-center text-indigo-600 hover:text-indigo-500"
+          >
+            Tambah produk pertama Anda
+          </Link>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {products.map((product) => (
+            <div
+              key={product.id}
+              className="bg-white rounded-lg shadow overflow-hidden hover:shadow-lg transition-shadow duration-200"
+            >
+              <div className="relative aspect-[4/3] w-full bg-gray-100">
+                <Image
+                  src={product.images[0] || "https://via.placeholder.com/500"}
+                  alt={product.name}
+                  fill
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  className="object-contain p-2"
+                  priority={false}
+                  loading="lazy"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src =
+                      "https://via.placeholder.com/500?text=No+Image";
+                  }}
+                />
+              </div>
+              <div className="p-4">
+                <div className="flex justify-between items-start mb-2">
+                  <h3 className="text-lg font-medium text-gray-900">
+                    {product.name}
+                  </h3>
+                  <div className="flex space-x-2">
+                    <Link
+                      href={`/admin/products/${product.id}/edit`}
+                      className="text-indigo-600 hover:text-indigo-900"
+                    >
+                      <Pencil className="h-5 w-5" />
+                    </Link>
+                    <button
+                      onClick={() => {
+                        setSelectedProduct(product);
+                        setIsDeleteModalOpen(true);
+                      }}
+                      className="text-red-600 hover:text-red-900"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-500 mb-2">
+                  {product.category.name}
+                </p>
+                <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                  {product.description}
+                </p>
+                <div className="flex justify-between items-center">
+                  <span className="text-lg font-medium text-gray-900">
+                    {formatPrice(product.price)}
+                  </span>
+                  <span className="text-sm text-gray-600">
+                    Stok: {product.stock}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h2 className="text-lg font-medium mb-4">Hapus Produk</h2>
             <p className="text-gray-600 mb-4">
@@ -185,10 +226,17 @@ export default function AdminProductsPage() {
               </button>
               <button
                 onClick={handleDelete}
-                disabled={isLoading}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                disabled={isRefreshing}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
               >
-                {isLoading ? "Menghapus..." : "Hapus"}
+                {isRefreshing ? (
+                  <>
+                    <Loader2 className="animate-spin h-4 w-4" />
+                    <span>Menghapus...</span>
+                  </>
+                ) : (
+                  "Hapus"
+                )}
               </button>
             </div>
           </div>

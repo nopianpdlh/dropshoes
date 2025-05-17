@@ -50,7 +50,12 @@ export default function EditProductPage({
           throw new Error("Gagal mengambil data kategori");
         }
         const data = await response.json();
-        setCategories(data);
+        // Gabungkan mainCategories dan subCategories
+        const allCategories = [
+          ...(data.mainCategories || []),
+          ...(data.subCategories || []),
+        ];
+        setCategories(allCategories);
       } catch (error) {
         setError("Gagal mengambil data kategori");
         toast.error("Gagal memuat data kategori");
@@ -234,7 +239,12 @@ export default function EditProductPage({
           >
             <option value="">Pilih Kategori</option>
             {categories.map((category) => (
-              <option key={category.id} value={category.id}>
+              <option
+                key={category.id}
+                value={category.id}
+                className={category.parentId ? "pl-4" : "font-semibold"}
+              >
+                {category.parentId ? "└─ " : ""}
                 {category.name}
               </option>
             ))}
