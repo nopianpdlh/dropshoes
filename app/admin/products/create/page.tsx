@@ -1,12 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import toast, { Toaster } from "react-hot-toast";
+
+interface Category {
+  id: string;
+  name: string;
+}
 
 export default function CreateProductPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  // Fetch categories when component mounts
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch("/api/admin/categories");
+        if (!response.ok) {
+          throw new Error("Gagal mengambil data kategori");
+        }
+        const data = await response.json();
+        setCategories(data);
+      } catch (error) {
+        console.error("Error mengambil kategori:", error);
+        setError("Gagal memuat kategori. Silakan coba lagi.");
+        toast.error("Gagal memuat kategori");
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -38,10 +65,12 @@ export default function CreateProductPage() {
         throw new Error("Gagal menambahkan produk");
       }
 
+      toast.success("Produk berhasil ditambahkan!");
       router.push("/admin/products");
       router.refresh();
     } catch (error) {
       setError("Terjadi kesalahan. Silakan coba lagi.");
+      toast.error("Gagal menambahkan produk");
     } finally {
       setLoading(false);
     }
@@ -49,6 +78,7 @@ export default function CreateProductPage() {
 
   return (
     <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <Toaster position="top-center" />
       <h1 className="text-2xl font-semibold text-gray-900 mb-8">
         Tambah Produk Baru
       </h1>
@@ -72,6 +102,7 @@ export default function CreateProductPage() {
             name="name"
             id="name"
             required
+            placeholder="Masukkan nama produk"
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
           />
         </div>
@@ -88,6 +119,7 @@ export default function CreateProductPage() {
             id="description"
             rows={4}
             required
+            placeholder="Masukkan deskripsi produk"
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
           />
         </div>
@@ -106,6 +138,7 @@ export default function CreateProductPage() {
             required
             min="0"
             step="1000"
+            placeholder="Masukkan harga produk"
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
           />
         </div>
@@ -123,6 +156,7 @@ export default function CreateProductPage() {
             id="stock"
             required
             min="0"
+            placeholder="Masukkan jumlah stok"
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
           />
         </div>
@@ -138,8 +172,8 @@ export default function CreateProductPage() {
             type="url"
             name="image"
             id="image"
+            placeholder="https://example.com/gambar.jpg"
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            placeholder="https://example.com/image.jpg"
           />
         </div>
 
@@ -157,7 +191,11 @@ export default function CreateProductPage() {
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
           >
             <option value="">Pilih Kategori</option>
-            {/* Kategori akan diambil dari API */}
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
           </select>
         </div>
 

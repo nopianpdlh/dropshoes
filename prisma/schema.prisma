@@ -41,9 +41,14 @@ model Product {
 }
 
 model Category {
-  id        String    @id @default(cuid())
-  name      String    @unique
-  products  Product[]
+  id          String     @id @default(cuid())
+  name        String     @unique
+  products    Product[]
+  parent      Category?  @relation("CategoryToSubcategory", fields: [parentId], references: [id])
+  parentId    String?
+  children    Category[] @relation("CategoryToSubcategory")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @default(now()) @updatedAt
 }
 
 model Size {

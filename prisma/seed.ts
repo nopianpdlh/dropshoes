@@ -3,48 +3,75 @@ const { hash } = require("bcrypt");
 
 const prisma = new PrismaClient();
 
+interface ProductSeed {
+  name: string;
+  description: string;
+  price: number;
+  stock: number;
+  images: string[];
+  categoryName: string;
+  sizes: string[];
+  colors: string[];
+}
+
 async function main() {
-  // Buat kategori
-  const categories = [
-    { name: "Sneakers" },
-    { name: "Running" },
-    { name: "Basketball" },
-    { name: "Casual" },
-    { name: "Formal" },
-    { name: "Sandal" },
-    { name: "Sport" },
-    { name: "Training" },
+  // Create main categories (brands)
+  const brands = [
+    { name: "Adidas" },
+    { name: "Nike" },
+    { name: "New Balance" },
   ];
 
-  console.log("Menambahkan kategori...");
-  for (const category of categories) {
-    await prisma.category.upsert({
-      where: { name: category.name },
-      update: {},
-      create: category,
-    });
+  const createdBrands = await Promise.all(
+    brands.map((brand) =>
+      prisma.category.create({
+        data: brand,
+      })
+    )
+  );
+
+  // Create subcategories for each brand
+  const subcategories = ["Men", "Women", "Kids", "Sport"];
+
+  for (const brand of createdBrands) {
+    await Promise.all(
+      subcategories.map((subName) =>
+        prisma.category.create({
+          data: {
+            name: `${subName} - ${brand.name}`,
+            parent: {
+              connect: { id: brand.id },
+            },
+          },
+        })
+      )
+    );
   }
 
   // Buat sizes
   console.log("Menambahkan ukuran sepatu...");
   const sizes = ["36", "37", "38", "39", "40", "41", "42", "43", "44"];
+  const createdSizes = [];
   for (const size of sizes) {
-    await prisma.size.upsert({
+    const createdSize = await prisma.size.upsert({
       where: { name: size },
       update: {},
       create: { name: size },
     });
+    createdSizes.push(createdSize);
   }
 
   // Buat colors
   console.log("Menambahkan warna...");
   const colors = ["Black", "White", "Red", "Blue", "Grey"];
+  const createdColors = [];
   for (const color of colors) {
-    await prisma.color.upsert({
+    const createdColor = await prisma.color.upsert({
       where: { name: color },
       update: {},
       create: { name: color },
     });
+    createdColors.push(createdColor);
   }
 
   // Buat beberapa user dummy
@@ -88,19 +115,8 @@ async function main() {
   }
 
   // Buat beberapa produk dummy
-  const products = [
-    {
-      name: "Nike Air Max 270",
-      description: "Sepatu lifestyle dengan bantalan udara yang nyaman",
-      price: 1899000,
-      stock: 50,
-      images: [
-        "https://res.cloudinary.com/djuiqpinc/image/upload/v1747410568/new1_gwoxyv.jpg",
-      ],
-      categoryName: "Sneakers",
-      sizes: ["40", "41", "42", "43"],
-      colors: ["Black", "White", "Red"],
-    },
+  console.log("Menambahkan produk dummy...");
+  const products: ProductSeed[] = [
     {
       name: "Adidas Ultraboost",
       description:
@@ -110,26 +126,37 @@ async function main() {
       images: [
         "https://res.cloudinary.com/djuiqpinc/image/upload/v1747410568/new1_gwoxyv.jpg",
       ],
-      categoryName: "Running",
-      sizes: ["39", "40", "41", "42"],
-      colors: ["Blue", "Black", "Grey"],
+      categoryName: "Sport - Adidas",
+      sizes: ["40", "41", "42", "43"],
+      colors: ["Black", "White", "Grey"],
     },
     {
-      name: "Nike Zoom Freak",
-      description: "Sepatu basket signature dari Giannis Antetokounmpo",
-      price: 1699000,
+      name: "Nike Air Max",
+      description: "Sepatu lifestyle dengan bantalan udara yang nyaman",
+      price: 1899000,
+      stock: 50,
+      images: [
+        "https://res.cloudinary.com/djuiqpinc/image/upload/v1747410568/new1_gwoxyv.jpg",
+      ],
+      categoryName: "Sport - Nike",
+      sizes: ["39", "40", "41", "42"],
+      colors: ["Red", "Blue", "White"],
+    },
+    {
+      name: "New Balance 574",
+      description: "Sepatu klasik dengan desain retro yang stylish",
+      price: 1299000,
       stock: 25,
       images: [
         "https://res.cloudinary.com/djuiqpinc/image/upload/v1747410568/new1_gwoxyv.jpg",
       ],
-      categoryName: "Basketball",
-      sizes: ["42", "43", "44"],
-      colors: ["Black", "White"],
+      categoryName: "Sport - New Balance",
+      sizes: ["38", "39", "40", "41"],
+      colors: ["Grey", "Black", "Blue"],
     },
   ];
 
-  console.log("Menambahkan produk dummy...");
-  const createdProducts: any[] = [];
+  const createdProducts = [];
   for (const product of products) {
     const category = await prisma.category.findUnique({
       where: { name: product.categoryName },
@@ -141,21 +168,13 @@ async function main() {
       });
 
       if (!existingProduct) {
-        const sizes = await prisma.size.findMany({
-          where: {
-            name: {
-              in: product.sizes,
-            },
-          },
-        });
+        const selectedSizes = createdSizes.filter((size) =>
+          product.sizes.includes(size.name)
+        );
 
-        const colors = await prisma.color.findMany({
-          where: {
-            name: {
-              in: product.colors,
-            },
-          },
-        });
+        const selectedColors = createdColors.filter((color) =>
+          product.colors.includes(color.name)
+        );
 
         const createdProduct = await prisma.product.create({
           data: {
@@ -166,12 +185,10 @@ async function main() {
             images: product.images,
             categoryId: category.id,
             sizes: {
-              connect: sizes.map((size: { id: string }) => ({ id: size.id })),
+              connect: selectedSizes.map((size) => ({ id: size.id })),
             },
             colors: {
-              connect: colors.map((color: { id: string }) => ({
-                id: color.id,
-              })),
+              connect: selectedColors.map((color) => ({ id: color.id })),
             },
           },
         });
@@ -251,7 +268,7 @@ async function main() {
     }
   }
 
-  console.log("Seeder selesai!");
+  console.log("Seeding completed!");
 }
 
 main()

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatPrice } from "@/lib/utils";
 import { Pencil, Trash2 } from "lucide-react";
+import toast, { Toaster } from "react-hot-toast";
 
 interface Product {
   id: string;
@@ -28,12 +29,13 @@ export default function AdminProductsPage() {
     try {
       const response = await fetch("/api/admin/products");
       if (!response.ok) {
-        throw new Error("Failed to fetch products");
+        throw new Error("Gagal mengambil data produk");
       }
       const data = await response.json();
       setProducts(data);
     } catch (error) {
-      console.error("Error fetching products:", error);
+      console.error("Error mengambil produk:", error);
+      toast.error("Gagal memuat daftar produk");
     }
   };
 
@@ -55,19 +57,24 @@ export default function AdminProductsPage() {
       );
 
       if (response.ok) {
+        toast.success("Produk berhasil dihapus!");
         setIsDeleteModalOpen(false);
         setSelectedProduct(null);
         fetchProducts();
         router.refresh();
+      } else {
+        throw new Error("Gagal menghapus produk");
       }
     } catch (error) {
-      console.error("Error deleting product:", error);
+      console.error("Error menghapus produk:", error);
+      toast.error("Gagal menghapus produk");
     }
     setIsLoading(false);
   };
 
   return (
     <div className="px-4 sm:px-6 lg:px-8">
+      <Toaster position="top-center" />
       <div className="sm:flex sm:items-center">
         <div className="sm:flex-auto">
           <h1 className="text-2xl font-semibold text-gray-900">Produk</h1>
@@ -116,7 +123,7 @@ export default function AdminProductsPage() {
                     Stok
                   </th>
                   <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                    <span className="sr-only">Actions</span>
+                    <span className="sr-only">Aksi</span>
                   </th>
                 </tr>
               </thead>

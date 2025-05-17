@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import toast, { Toaster } from "react-hot-toast";
 import { Category } from "@prisma/client";
 
 interface Product {
@@ -37,6 +38,7 @@ export default function EditProductPage({
         setProduct(data);
       } catch (error) {
         setError("Gagal mengambil data produk");
+        toast.error("Gagal memuat data produk");
       }
     };
 
@@ -51,6 +53,7 @@ export default function EditProductPage({
         setCategories(data);
       } catch (error) {
         setError("Gagal mengambil data kategori");
+        toast.error("Gagal memuat data kategori");
       }
     };
 
@@ -70,7 +73,11 @@ export default function EditProductPage({
       price: parseFloat(formData.get("price") as string),
       stock: parseInt(formData.get("stock") as string),
       categoryId: formData.get("categoryId") as string,
-      images: [(formData.get("image") as string) || product?.images[0]],
+      images: [
+        (formData.get("image") as string) ||
+          product?.images[0] ||
+          "https://via.placeholder.com/500",
+      ],
     };
 
     try {
@@ -86,10 +93,12 @@ export default function EditProductPage({
         throw new Error("Gagal mengupdate produk");
       }
 
+      toast.success("Produk berhasil diperbarui!");
       router.push("/admin/products");
       router.refresh();
     } catch (error) {
       setError("Terjadi kesalahan. Silakan coba lagi.");
+      toast.error("Gagal mengupdate produk");
     } finally {
       setLoading(false);
     }
@@ -98,13 +107,16 @@ export default function EditProductPage({
   if (!product) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        <div className="text-xl">Memuat...</div>
+        <div className="text-center">
+          <div className="text-lg text-gray-600">Memuat data produk...</div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <Toaster position="top-center" />
       <h1 className="text-2xl font-semibold text-gray-900 mb-8">Edit Produk</h1>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -127,6 +139,7 @@ export default function EditProductPage({
             id="name"
             required
             defaultValue={product.name}
+            placeholder="Masukkan nama produk"
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
           />
         </div>
@@ -144,6 +157,7 @@ export default function EditProductPage({
             rows={4}
             required
             defaultValue={product.description}
+            placeholder="Masukkan deskripsi produk"
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
           />
         </div>
@@ -163,6 +177,7 @@ export default function EditProductPage({
             min="0"
             step="1000"
             defaultValue={product.price}
+            placeholder="Masukkan harga produk"
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
           />
         </div>
@@ -181,6 +196,7 @@ export default function EditProductPage({
             required
             min="0"
             defaultValue={product.stock}
+            placeholder="Masukkan jumlah stok"
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
           />
         </div>
@@ -197,8 +213,8 @@ export default function EditProductPage({
             name="image"
             id="image"
             defaultValue={product.images[0]}
+            placeholder="https://example.com/gambar.jpg"
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            placeholder="https://example.com/image.jpg"
           />
         </div>
 
