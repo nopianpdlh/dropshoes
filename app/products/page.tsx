@@ -4,7 +4,7 @@ import { Metadata } from "next";
 import { Prisma } from "@prisma/client";
 
 export const metadata: Metadata = {
-  title: "Products - SHOEZ",
+  title: "Products - DropShoes",
   description: "Browse our collection of premium footwear",
 };
 

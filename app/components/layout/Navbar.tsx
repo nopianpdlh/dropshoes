@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ShoppingCart, User, Search, LogIn, UserPlus } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
+import { useCartStore } from "@/app/store/cart";
 
 interface Category {
   id: string;
@@ -20,6 +21,7 @@ const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showAuthMenu, setShowAuthMenu] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const { count: cartItemCount, fetchCount } = useCartStore();
 
   // Fetch categories when component mounts
   useEffect(() => {
@@ -57,6 +59,13 @@ const Navbar = () => {
     fetchCategories();
   }, []);
 
+  // Fetch cart count when session changes
+  useEffect(() => {
+    if (session) {
+      fetchCount();
+    }
+  }, [session, fetchCount]);
+
   // console.log("Current categories state:", categories);
 
   // Jika user adalah admin dan berada di halaman admin, jangan tampilkan navbar ini
@@ -75,26 +84,27 @@ const Navbar = () => {
     <nav className="bg-white shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
-          <div className="flex">
-            <div className="flex-shrink-0 flex items-center">
-              <Link
+          {/* Logo */}
+          <div className="flex-shrink-0 flex items-center">
+            <Link
+              href="/"
+              className="text-2xl font-bold text-gray-900 hover:opacity-50 transition-colors"
+            >
+              DropShoes
+            </Link>
+          </div>
+
+          {/* Center Navigation */}
+          <div className="flex-1 flex justify-center">
+            <div className="hidden sm:flex items-center space-x-8">
+              {/* <Link
                 href="/"
-                className="text-2xl font-bold text-gray-900 hover:text-indigo-600 transition-colors"
-              >
-                DropShoes
-              </Link>
-            </div>
-            <div className="hidden sm:ml-6 sm:flex sm:items-center sm:space-x-8">
-              <Link
-                href="/"
-                className={`inline-flex items-center h-16 px-1 border-b-2 text-sm font-medium transition-colors ${
-                  pathname === "/"
-                    ? "border-indigo-500 text-gray-900"
-                    : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
+                className={`inline-flex items-center h-16 px-1 text-[16px] font-medium transition-colors hover:opacity-50 ${
+                  pathname === "/" ? "text-black" : "text-gray-500"
                 }`}
               >
                 Home
-              </Link>
+              </Link> */}
 
               {/* Brand Categories with Dropdowns */}
               {categories.map((brand) => (
@@ -104,10 +114,10 @@ const Navbar = () => {
                 >
                   <Link
                     href={`/products?brand=${encodeURIComponent(brand.name)}`}
-                    className={`inline-flex items-center px-1 border-b-2 text-sm font-medium transition-colors ${
+                    className={`inline-flex items-center px-1 text-[16px] font-medium transition-colors hover:opacity-50 ${
                       pathname.includes(brand.name.toLowerCase())
-                        ? "border-indigo-500 text-gray-900"
-                        : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
+                        ? "text-black"
+                        : "text-gray-500"
                     }`}
                   >
                     {brand.name}
@@ -122,7 +132,7 @@ const Navbar = () => {
                           href={`/products?brand=${encodeURIComponent(
                             brand.name
                           )}&category=${encodeURIComponent(subCategory.name)}`}
-                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         >
                           {subCategory.name}
                         </Link>
@@ -134,7 +144,8 @@ const Navbar = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          {/* Right Side Tools */}
+          <div className="flex items-center gap-6">
             {/* Search Form */}
             <form onSubmit={handleSearch} className="relative">
               <input
@@ -142,28 +153,31 @@ const Navbar = () => {
                 placeholder="Cari produk..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-64 px-4 py-1 pr-10 text-sm border rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-[180px] h-[40px] px-12 text-[14px] bg-gray-100 rounded-full focus:outline-none focus:w-[200px] transition-all duration-300"
               />
               <button
                 type="submit"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500"
               >
-                <Search className="h-4 w-4" />
+                <Search className="h-5 w-5" />
               </button>
             </form>
 
             {/* Cart */}
-            <Link
-              href="/cart"
-              className="relative p-2 rounded-full text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              <ShoppingCart className="h-6 w-6" />
-              <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-400 ring-2 ring-white" />
+            <Link href="/cart" className="hover:opacity-50">
+              <div className="relative">
+                <ShoppingCart className="h-6 w-6" />
+                {cartItemCount > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-black text-white text-[10px] flex items-center justify-center">
+                    {cartItemCount}
+                  </span>
+                )}
+              </div>
             </Link>
 
             {/* Profile/Auth Menu */}
             <div className="relative group">
-              <button className="p-2 rounded-full text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+              <button className="hover:opacity-50">
                 <User className="h-6 w-6" />
               </button>
 

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import CartItems from "./CartItems";
 
 export const metadata = {
-  title: "Keranjang Belanja - SHOEZ",
+  title: "Keranjang Belanja - DropShoes",
   description: "Keranjang belanja Anda",
 };
 

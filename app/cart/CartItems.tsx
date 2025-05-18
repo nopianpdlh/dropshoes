@@ -5,6 +5,7 @@ import { Minus, Plus, X } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useCartStore } from "@/app/store/cart";
 
 interface CartItem {
   id: string;
@@ -25,6 +26,7 @@ interface CartItemsProps {
 export default function CartItems({ items }: CartItemsProps) {
   const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
+  const { incrementCount, decrementCount, setCount } = useCartStore();
 
   const updateQuantity = async (itemId: string, newQuantity: number) => {
     if (newQuantity < 1) return;
@@ -41,6 +43,12 @@ export default function CartItems({ items }: CartItemsProps) {
 
       if (!response.ok) {
         throw new Error("Failed to update quantity");
+      }
+
+      if (newQuantity > items.find((item) => item.id === itemId)?.quantity!) {
+        incrementCount();
+      } else {
+        decrementCount();
       }
 
       router.refresh();
@@ -61,6 +69,16 @@ export default function CartItems({ items }: CartItemsProps) {
 
       if (!response.ok) {
         throw new Error("Failed to remove item");
+      }
+
+      const item = items.find((item) => item.id === itemId);
+      if (item) {
+        setCount(
+          Math.max(
+            0,
+            items.reduce((acc, item) => acc + item.quantity, 0) - item.quantity
+          )
+        );
       }
 
       router.refresh();
@@ -92,9 +110,7 @@ export default function CartItems({ items }: CartItemsProps) {
                 <h4 className="font-medium text-gray-700">
                   {item.product.name}
                 </h4>
-                <p className="mt-1 text-sm text-gray-500">
-                  Ukuran: {item.size}
-                </p>
+                <p className="mt-1 text-sm text-gray-500">Size: {item.size}</p>
               </div>
               <p className="text-sm font-medium text-gray-900">
                 {formatPrice(item.product.price * item.quantity)}
