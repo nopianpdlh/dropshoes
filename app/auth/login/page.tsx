@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") || "/";
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -31,7 +33,18 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/admin/products");
+      // Ambil data user untuk cek role
+      const userResponse = await fetch("/api/auth/me");
+      const userData = await userResponse.json();
+
+      if (userData.role === "ADMIN") {
+        router.push("/admin/products");
+      } else {
+        // Jika ada callbackUrl (misalnya dari halaman yang memerlukan login), gunakan itu
+        // Jika tidak, arahkan ke halaman utama
+        router.push(callbackUrl);
+      }
+
       router.refresh();
     } catch (error) {
       setError("Terjadi kesalahan. Silakan coba lagi.");

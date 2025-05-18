@@ -7,6 +7,8 @@ import { Prisma } from "@prisma/client";
 // GET /api/admin/categories
 export async function GET() {
   try {
+    console.log("API: Fetching categories...");
+
     // Fetch main categories (brands)
     const mainCategories = await prisma.category.findMany({
       where: {
@@ -18,6 +20,8 @@ export async function GET() {
         parentId: true,
       },
     });
+
+    console.log("API: Main categories fetched:", mainCategories);
 
     // Fetch sub-categories
     const subCategories = await prisma.category.findMany({
@@ -33,15 +37,30 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({
+    console.log("API: Sub categories fetched:", subCategories);
+
+    const response = {
       mainCategories,
       subCategories,
+    };
+
+    console.log("API: Sending response:", response);
+
+    return new NextResponse(JSON.stringify(response), {
+      headers: {
+        "Content-Type": "application/json",
+      },
     });
   } catch (error) {
-    console.error("Error fetching categories:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch categories" },
-      { status: 500 }
+    console.error("API Error:", error);
+    return new NextResponse(
+      JSON.stringify({ error: "Failed to fetch categories" }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
     );
   }
 }

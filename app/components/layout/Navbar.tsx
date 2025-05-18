@@ -25,13 +25,20 @@ const Navbar = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await fetch("/api/admin/categories");
-        if (!response.ok) throw new Error("Failed to fetch categories");
+        const response = await fetch("/api/categories");
+        if (!response.ok) {
+          throw new Error(`Failed to fetch categories: ${response.status}`);
+        }
+
         const data = await response.json();
 
-        // Organize categories into hierarchy
-        const mainCategories = data.mainCategories || [];
-        const subCategories = data.subCategories || [];
+        if (!data || !data.mainCategories || !data.subCategories) {
+          console.error("Invalid data structure:", data);
+          return;
+        }
+
+        const mainCategories = data.mainCategories;
+        const subCategories = data.subCategories;
 
         const categoriesWithChildren = mainCategories.map((main: Category) => ({
           ...main,
@@ -43,11 +50,14 @@ const Navbar = () => {
         setCategories(categoriesWithChildren);
       } catch (error) {
         console.error("Error fetching categories:", error);
+        setCategories([]);
       }
     };
 
     fetchCategories();
   }, []);
+
+  // console.log("Current categories state:", categories);
 
   // Jika user adalah admin dan berada di halaman admin, jangan tampilkan navbar ini
   if (session?.user?.role === "ADMIN" && pathname.startsWith("/admin")) {
@@ -74,10 +84,10 @@ const Navbar = () => {
                 DropShoes
               </Link>
             </div>
-            <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
+            <div className="hidden sm:ml-6 sm:flex sm:items-center sm:space-x-8">
               <Link
                 href="/"
-                className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${
+                className={`inline-flex items-center h-16 px-1 border-b-2 text-sm font-medium transition-colors ${
                   pathname === "/"
                     ? "border-indigo-500 text-gray-900"
                     : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
@@ -88,10 +98,13 @@ const Navbar = () => {
 
               {/* Brand Categories with Dropdowns */}
               {categories.map((brand) => (
-                <div key={brand.id} className="relative group">
+                <div
+                  key={brand.id}
+                  className="relative group flex items-center h-16"
+                >
                   <Link
                     href={`/products?brand=${encodeURIComponent(brand.name)}`}
-                    className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${
+                    className={`inline-flex items-center px-1 border-b-2 text-sm font-medium transition-colors ${
                       pathname.includes(brand.name.toLowerCase())
                         ? "border-indigo-500 text-gray-900"
                         : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
@@ -102,7 +115,7 @@ const Navbar = () => {
 
                   {/* Dropdown Menu */}
                   {brand.children && brand.children.length > 0 && (
-                    <div className="absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all duration-200 transform scale-95 group-hover:scale-100">
+                    <div className="absolute left-0 top-16 w-48 bg-white rounded-md shadow-lg py-1 z-50 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all duration-200 transform scale-95 group-hover:scale-100">
                       {brand.children.map((subCategory) => (
                         <Link
                           key={subCategory.id}
@@ -118,17 +131,6 @@ const Navbar = () => {
                   )}
                 </div>
               ))}
-
-              <Link
-                href="/products?sale=true"
-                className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-colors ${
-                  pathname.includes("sale")
-                    ? "border-indigo-500 text-gray-900"
-                    : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700"
-                }`}
-              >
-                Sale
-              </Link>
             </div>
           </div>
 
