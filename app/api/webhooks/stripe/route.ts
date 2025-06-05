@@ -5,50 +5,69 @@ import { prisma } from "@/lib/prisma"; //
 import { headers } from "next/headers";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-05-28.basil", // Update to the expected API version,
+  apiVersion: "2025-05-28.basil",
 });
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
 export async function POST(req: NextRequest) {
-  const body = await req.text();
-  const signature = headers().get("stripe-signature") as string;
-
-  let event: Stripe.Event;
-
   try {
-    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-  } catch (err: any) {
-    console.error(`Webhook signature verification failed: ${err.message}`);
-    return NextResponse.json(
-      { error: `Webhook Error: ${err.message}` },
-      { status: 400 }
-    );
-  }
+    console.log("[Webhook] Received request");
 
-  // Tangani event
-  switch (event.type) {
-    case "checkout.session.completed":
+    const body = await req.text();
+    const signature = headers().get("stripe-signature");
+
+    if (!signature) {
+      console.error("[Webhook] No stripe signature found");
+      return NextResponse.json(
+        { error: "No stripe signature" },
+        { status: 400 }
+      );
+    }
+
+    if (!webhookSecret) {
+      console.error("[Webhook] No webhook secret configured");
+      return NextResponse.json(
+        { error: "Webhook secret not configured" },
+        { status: 500 }
+      );
+    }
+
+    console.log("[Webhook] Verifying signature");
+    let event: Stripe.Event;
+
+    try {
+      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+      console.log("[Webhook] Event verified:", event.type);
+    } catch (err: any) {
+      console.error("[Webhook] Signature verification failed:", err.message);
+      return NextResponse.json(
+        { error: `Webhook Error: ${err.message}` },
+        { status: 400 }
+      );
+    }
+
+    // Tangani event
+    if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      console.log("Checkout Session Completed:", session.id);
+      console.log("[Webhook] Processing completed checkout session:", {
+        sessionId: session.id,
+        clientReferenceId: session.client_reference_id,
+        amountTotal: session.amount_total,
+        metadata: session.metadata,
+      });
 
       // Dapatkan detail user dari client_reference_id
       const userId = session.client_reference_id;
       if (!userId) {
         console.error(
-          "Webhook Error: Missing userId in session client_reference_id"
+          "[Webhook] Missing userId in session client_reference_id"
         );
         return NextResponse.json({ error: "Missing userId" }, { status: 400 });
       }
 
       try {
-        // 1. Ambil item dari line_items Stripe (atau dari database berdasarkan metadata jika ada)
-        // Stripe.checkout.sessions.listLineItems(session.id) bisa digunakan jika perlu mengambil detail lagi
-        // Untuk demo CV, kita bisa asumsikan detail sudah cukup dari session atau client_reference_id
-        // dan data keranjang user yang terakhir.
-
-        // Contoh mengambil item dari cart user saat itu (asumsi keranjang belum dikosongkan)
-        // Ini adalah penyederhanaan; idealnya, Anda menyimpan detail order saat membuat sesi Stripe atau mengambilnya dari line_items Stripe.
+        console.log("[Webhook] Fetching cart for user:", userId);
         const userCart = await prisma.cart.findUnique({
           where: { userId },
           include: {
@@ -60,77 +79,94 @@ export async function POST(req: NextRequest) {
 
         if (!userCart || userCart.items.length === 0) {
           console.error(
-            `Webhook Error: No cart found for user ${userId} or cart is empty.`
+            `[Webhook] No cart found for user ${userId} or cart is empty.`
           );
-          // Kirim respons 200 agar Stripe tidak mengirim ulang, tapi catat errornya.
           return NextResponse.json({
             received: true,
             message: "Cart not found or empty, but webhook acknowledged.",
           });
         }
 
-        // 2. Buat Order di database Anda
+        console.log("[Webhook] Cart found:", {
+          cartId: userCart.id,
+          itemCount: userCart.items.length,
+          items: userCart.items.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            size: item.size,
+            price: item.product.price,
+          })),
+        });
+
+        // Ambil alamat dari metadata
+        const address = session.metadata?.address || "Alamat tidak tersedia";
+        const fullName = session.metadata?.fullName || "Nama tidak tersedia";
+        const phone = session.metadata?.phone || "Telepon tidak tersedia";
+
+        console.log("[Webhook] Creating order with details:", {
+          userId,
+          address,
+          fullName,
+          phone,
+          total: session.amount_total! / 100,
+          itemCount: userCart.items.length,
+        });
+
+        // Buat order
         const createdOrder = await prisma.order.create({
           data: {
             userId: userId,
-            total: session.amount_total! / 100, // Stripe amount_total dalam sen, konversi ke Rupiah
-            status: "PROCESSING", // Atau 'PAID'
-            address:
-              "Alamat dummy dari profil user atau form checkout (jika ada)", // Perlu ada mekanisme untuk ini
-            // stripeCheckoutSessionId: session.id, // Simpan ID sesi Stripe
-            // stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : undefined,
+            total: session.amount_total! / 100,
+            status: "PROCESSING",
+            address: address,
+            customerName: fullName,
+            customerPhone: phone,
             items: {
               create: userCart.items.map((item) => ({
                 productId: item.productId,
                 quantity: item.quantity,
-                price: item.product.price, // Harga per unit
+                price: item.product.price,
                 size: item.size,
-                color: item.color, //
+                color: item.color || "",
               })),
             },
           },
+          include: {
+            items: true,
+          },
         });
-        console.log(`Order ${createdOrder.id} created for user ${userId}`);
 
-        // 3. Kosongkan keranjang user setelah order berhasil dibuat
+        console.log("[Webhook] Order created successfully:", {
+          orderId: createdOrder.id,
+          total: createdOrder.total,
+          status: createdOrder.status,
+          itemCount: createdOrder.items.length,
+        });
+
+        // Kosongkan keranjang
+        console.log("[Webhook] Clearing cart for user:", userId);
         await prisma.cartItem.deleteMany({
           where: { cartId: userCart.id },
         });
-        console.log(`Cart for user ${userId} cleared.`);
+        console.log("[Webhook] Cart cleared successfully");
 
-        // (Opsional) Kirim email konfirmasi, dll.
-      } catch (dbError: any) {
-        console.error("Webhook database error:", dbError);
-        // Jika terjadi error saat memproses di sisi Anda, Stripe akan mencoba mengirim ulang webhook.
-        // Pertimbangkan untuk mengirim status 500 agar Stripe tahu ada masalah.
+        return NextResponse.json({
+          received: true,
+          orderId: createdOrder.id,
+        });
+      } catch (error) {
+        console.error("[Webhook] Error processing webhook:", error);
         return NextResponse.json(
-          { error: `Database Error: ${dbError.message}` },
+          { error: "Error processing order" },
           { status: 500 }
         );
       }
-      break;
+    }
 
-    case "payment_intent.succeeded":
-      const paymentIntentSucceeded = event.data.object as Stripe.PaymentIntent;
-      console.log("PaymentIntent Succeeded:", paymentIntentSucceeded.id);
-      // Jika Anda menggunakan Payment Intents secara langsung atau ingin tindakan tambahan
-      break;
-
-    case "payment_intent.payment_failed":
-      const paymentIntentFailed = event.data.object as Stripe.PaymentIntent;
-      console.log(
-        "PaymentIntent Failed:",
-        paymentIntentFailed.id,
-        paymentIntentFailed.last_payment_error?.message
-      );
-      // Tangani pembayaran gagal, misal notifikasi user
-      break;
-
-    // ... tangani event lain jika perlu
-
-    default:
-      console.log(`Unhandled event type ${event.type}`);
+    console.log("[Webhook] Event processed successfully");
+    return NextResponse.json({ received: true });
+  } catch (error) {
+    console.error("[Webhook] Unexpected error:", error);
+    return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
   }
-
-  return NextResponse.json({ received: true });
 }

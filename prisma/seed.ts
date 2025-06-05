@@ -158,8 +158,12 @@ async function main() {
 
   const createdProducts = [];
   for (const product of products) {
-    const category = await prisma.category.findUnique({
-      where: { name: product.categoryName },
+    // Cari kategori berdasarkan nama
+    const category = await prisma.category.findFirst({
+      where: {
+        name: product.categoryName,
+        parentId: null,
+      },
     });
 
     if (category) {
@@ -260,6 +264,8 @@ async function main() {
           total: total,
           status: "DELIVERED",
           address: "Jl. Contoh No. 123, Jakarta",
+          customerName: user.name || "Nama tidak tersedia",
+          customerPhone: "08123456789",
           items: {
             create: orderItems,
           },
